@@ -57,9 +57,9 @@ def resolve_agent(agent_name: str) -> dict:
     }
 
 
-def build_image(agent_name: str, agent_config: dict):
+def build_image(agent_config: dict):
     dockerfile = agent_config["dockerfile"]
-    df_path = Path(__file__).parent / dockerfile
+    df_path = Path(__file__).resolve().parent / dockerfile
     if not df_path.exists():
         console.print(f"[red]Error: Dockerfile not found: {df_path}[/red]")
         sys.exit(1)
@@ -94,8 +94,8 @@ def check_prerequisites(agent_config: dict):
         sys.exit(1)
 
 
-def run_instance(agent_name: str, agent_config: dict, workspace_dir: Path, memory: str, cpus: str, agent_args: list[str]):
-    instance_name = f"{INSTANCE_PREFIX}-{agent_name}-{workspace_dir.name}-{os.getpid()}"
+def run_instance(agent_config: dict, workspace_dir: Path, memory: str, cpus: str, agent_args: list[str]):
+    instance_name = f"{INSTANCE_PREFIX}-{agent_config['name']}-{workspace_dir.name}-{os.getpid()}"
 
     run_cmd = [
         "docker", "run",
@@ -155,7 +155,7 @@ def main(args):
     logging.debug(f"Agent config: {agent_config}")
 
     if args.build:
-        build_image(args.agent, agent_config)
+        build_image(agent_config)
         return
 
     check_prerequisites(agent_config)
@@ -164,7 +164,7 @@ def main(args):
     memory = args.memory or os.environ.get("SANDBOX_MEMORY", DEFAULT_MEMORY)
     cpus = args.cpus or os.environ.get("SANDBOX_CPUS", DEFAULT_CPUS)
 
-    run_instance(args.agent, agent_config, workspace_dir, memory, cpus, args.agent_args)
+    run_instance(agent_config, workspace_dir, memory, cpus, args.agent_args)
 
 
 if __name__ == "__main__":
