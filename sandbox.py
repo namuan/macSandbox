@@ -94,7 +94,7 @@ def check_prerequisites(agent_config: dict):
         sys.exit(1)
 
 
-def run_instance(agent_config: dict, workspace_dir: Path, memory: str, cpus: str, agent_args: list[str]):
+def run_instance(agent_config: dict, workspace_dir: Path, memory: str, cpus: str, mounts: list[str], agent_args: list[str]):
     instance_name = f"{INSTANCE_PREFIX}-{agent_config['name']}-{workspace_dir.name}-{os.getpid()}"
 
     run_cmd = [
@@ -104,13 +104,15 @@ def run_instance(agent_config: dict, workspace_dir: Path, memory: str, cpus: str
         f"--memory={memory}",
         f"--cpus={cpus}",
         "-v", f"{workspace_dir}:/workspace",
+        *(flag for mount in mounts for flag in ("-v", mount)),
         "-w", "/workspace",
         agent_config["image"],
         *agent_args,
     ]
 
     logging.debug(f"Running: {' '.join(run_cmd)}")
-    subprocess.run(run_cmd)
+    result = subprocess.run(run_cmd)
+    sys.exit(result.returncode)
 
 
 def parse_args():
@@ -136,6 +138,13 @@ def parse_args():
         "--cpus",
         default=None,
         help="CPU cores (default: SANDBOX_CPUS env or 2)",
+    )
+    parser.add_argument(
+        "--mount",
+        action="append",
+        default=[],
+        metavar="SRC:DST",
+        help="Mount a host directory into the container, e.g. ~/.claude:/home/claude/.claude",
     )
     parser.add_argument(
         "--build",
@@ -164,7 +173,7 @@ def main(args):
     memory = args.memory or os.environ.get("SANDBOX_MEMORY", DEFAULT_MEMORY)
     cpus = args.cpus or os.environ.get("SANDBOX_CPUS", DEFAULT_CPUS)
 
-    run_instance(agent_config, workspace_dir, memory, cpus, args.agent_args)
+    run_instance(agent_config, workspace_dir, memory, cpus, args.mount, args.agent_args)
 
 
 if __name__ == "__main__":
