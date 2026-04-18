@@ -51,6 +51,43 @@ chmod +x ~/.local/bin/sandbox.py
 ./sandbox.py --agent claude --memory 8G --cpus 4        # custom resources
 ```
 
+### Mounting Host Directories
+
+Use `--mount SRC:DST` to bind-mount paths from the host into the container. The flag is repeatable.
+
+Both the `claude` and `opencode` containers run as non-root users (`claude` and `opencode` respectively), so config dirs live under `/home/<user>/` rather than `/root/`.
+
+**Claude — mount auth so the container reuses your existing login:**
+
+```bash
+./sandbox.py --agent claude --mount ~/.claude:/home/claude/.claude
+```
+
+**Claude — mount auth read-only plus a GitHub CLI config:**
+
+```bash
+./sandbox.py --agent claude \
+  --mount ~/.claude:/home/claude/.claude:ro \
+  --mount ~/.config/gh:/home/claude/.config/gh:ro
+```
+
+**opencode — mount its config directory:**
+
+```bash
+./sandbox.py --agent opencode --mount ~/.config/opencode:/home/opencode/.config/opencode
+```
+
+**Any agent — mount additional context or shared data:**
+
+```bash
+./sandbox.py --agent claude \
+  --mount ~/.claude:/home/claude/.claude \
+  --mount ~/shared-data:/data:ro \
+  "analyse the files in /data"
+```
+
+> **Root vs non-root:** If you build a custom `Dockerfile.myagent` that runs as `root`, use `/root/.claude` as the destination instead of `/home/<user>/.claude`.
+
 ### Environment Variables
 
 | Variable | Default | Description |
