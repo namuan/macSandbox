@@ -1,97 +1,78 @@
 # macSandbox
 
-Run Claude Code with `--dangerously-skip-permissions` inside an isolated VM - built by Claude itself.
-
-## The Story
-
-I wanted Claude to have full autonomy but didn't want it nuking my system. So I asked Claude to solve the problem by building its own cage.
-
-Claude researched Apple's new Containerization framework (WWDC 2025), checked my system specs, installed the tooling, built a container image, wrote a wrapper script, and tested everything. I just approved a few `sudo` commands.
-
-**Total time:** ~15 minutes of conversation.
+Run AI agents with full autonomy inside isolated Docker containers.
 
 ## What You Get
 
 ```bash
-claude                    # normal Claude (unchanged)
-cldyo                     # Claude in isolated VM with --dangerously-skip-permissions
-cldyo -n 4                # 4 parallel Claude instances in separate VMs
+./sandbox.py --agent claude      # Claude in isolated container with --dangerously-skip-permissions
+./sandbox.py --agent opencode    # any other agent in its own container
 ```
 
-Each instance runs in its own lightweight VM. Your project directory is mounted at `/workspace`. Claude can do whatever it wants inside - when it exits, the VM is destroyed.
+Each instance runs in its own Docker container. Your project directory is mounted at `/workspace`. The agent can do whatever it wants inside — when it exits, the container is destroyed.
 
 ## Requirements
 
-- macOS 26+ (Tahoe)
-- Apple Silicon (M1/M2/M3/M4)
-- [Apple container CLI](https://github.com/apple/container/releases)
+- macOS, Linux, or Windows
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux)
+- `uv` — [install](https://docs.astral.sh/uv/getting-started/installation/)
 
 ## Installation
 
-### 1. Install Apple's container CLI
+### 1. Install Docker
+
+Download and start [Docker Desktop](https://www.docker.com/products/docker-desktop/), or on Linux:
 
 ```bash
-# Download the latest .pkg from:
-# https://github.com/apple/container/releases
-
-sudo installer -pkg container-installer-signed.pkg -target /
-container system start
-container system kernel set --recommended
+curl -fsSL https://get.docker.com | sh
 ```
 
-### 2. Build the Claude container image
+### 2. Build the agent image
 
 ```bash
 cd macSandbox
-container build -t cldyo-claude:latest .
+./sandbox.py --agent claude --build
 ```
 
-### 3. Install the wrapper script
+### 3. Install the script
 
 ```bash
-cp cldyo ~/.local/bin/
-chmod +x ~/.local/bin/cldyo
+cp sandbox.py ~/.local/bin/
+chmod +x ~/.local/bin/sandbox.py
 ```
 
 ## Usage
 
 ```bash
-# Start Claude with dangerous permissions in isolated VM
-cldyo
-
-# Continue last conversation
-cldyo -c
-
-# Start with a prompt
-cldyo "refactor this entire codebase"
-
-# Spawn 4 parallel instances (opens Terminal windows)
-cldyo -n 4
+./sandbox.py --agent claude                             # interactive with full permissions
+./sandbox.py --agent claude -c                          # continue last conversation
+./sandbox.py --agent claude "refactor this codebase"   # start with a prompt
+./sandbox.py --agent opencode                           # run a different agent
+./sandbox.py --agent claude --memory 8G --cpus 4        # custom resources
 ```
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | (required) | Passed through to container |
-| `CLDYO_MEMORY` | `4G` | Memory limit per instance |
-| `CLDYO_CPUS` | `2` | CPU cores per instance |
+| `SANDBOX_MEMORY` | `4G` | Memory limit per instance |
+| `SANDBOX_CPUS` | `2` | CPU cores per instance |
 
 ## How It Works
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Host macOS                                             │
+│  Host OS                                                │
 │                                                         │
 │  ┌─────────────┐                                        │
 │  │   claude    │  ← Normal, your existing setup         │
 │  └─────────────┘                                        │
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐│
-│  │  cldyo  →  Apple Container (Lightweight VM)         ││
+│  │  sandbox.py →  Docker Container                     ││
 │  │  ┌─────────────────────────────────────────────────┐││
-│  │  │  Linux VM (dedicated kernel)                    │││
-│  │  │  • claude --dangerously-skip-permissions        │││
+│  │  │  Isolated container                             │││
+│  │  │  • agent command runs here                      │││
 │  │  │  • /workspace ← your project (mounted)          │││
 │  │  │  • Isolated network, filesystem, processes      │││
 │  │  └─────────────────────────────────────────────────┘││
@@ -99,42 +80,31 @@ cldyo -n 4
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Why Apple Containers vs Docker?
+## Adding a New Agent
 
-| Feature | Docker | Apple Containers |
-|---------|--------|------------------|
-| Isolation | Shared kernel (namespaces) | **Dedicated VM per container** |
-| Startup | Fast | **Sub-second** |
-| License | Commercial use requires license | **Free** |
-| Native | Requires Docker Desktop | **Built into macOS 26** |
+All you need is a Dockerfile named `Dockerfile.{agent}`.
 
-Apple's approach gives each container its own lightweight VM with a dedicated kernel. Even if Claude escapes the container, it's still trapped in a VM.
+```dockerfile
+# Dockerfile.aider
+FROM python:3.12-slim
+RUN pip install aider-chat
+WORKDIR /workspace
+CMD ["aider", "--yes"]
+```
 
-## Multi-Instance Use Cases
+```bash
+./sandbox.py --agent aider --build
+./sandbox.py --agent aider
+```
 
-With 64GB RAM, you can run 8+ parallel Claude instances:
+## Repository Layout
 
-- **Parallel development** - Multiple features simultaneously
-- **A/B testing** - Compare different approaches
-- **Agent swarm** - Multiple agents on different tasks
-- **Code review** - One instance writes, another reviews
-
-## The Meta Part
-
-Claude built this entire solution:
-1. Researched Apple's Virtualization documentation
-2. Discovered the new Containerization framework
-3. Assessed system requirements
-4. Installed dependencies
-5. Wrote all the code
-6. Tested the setup
-
-It essentially built its own sandbox for running with elevated permissions.
-
-## Files
-
-- `Containerfile` - Container image definition
-- `cldyo` - Wrapper script for transparent VM execution
+```
+macSandbox/
+├── sandbox.py          # Entry point
+├── Dockerfile.claude   # Claude container image
+└── Dockerfile.opencode # opencode container image
+```
 
 ## License
 
